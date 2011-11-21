@@ -20,6 +20,18 @@ start_server {tags {"expire"}} {
         } {{} 0}
     }
 
+    test {EXPIREKEYS - set timeouts multiple times} {
+        r del x
+        r set x foobar
+        set v1 [r expirekeys x* 5]
+        set v2 [r ttl x]
+        set v3 [r expirekeys x* 10]
+        set v4 [r ttl x]
+        r expirekeys x* 4
+        list $v1 $v2 $v3 $v4
+    } {1 5 1 10}
+
+
     test {EXPIRE - write on expire should work} {
         r del x
         r lpush x foo
@@ -32,6 +44,13 @@ start_server {tags {"expire"}} {
         r del x
         r set x foo
         r expireat x [expr [clock seconds]+15]
+        r ttl x
+    } {1[345]}
+
+    test {EXPIREKEYSAT - Check for EXPIREKEYS alike behavior} {
+        r del x
+        r set x foo
+        r expirekeysat x* [expr [clock seconds]+15]
         r ttl x
     } {1[345]}
 

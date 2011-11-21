@@ -584,6 +584,62 @@ void expireatCommand(redisClient *c) {
     expireGenericCommand(c,c->argv[1],c->argv[2],time(NULL));
 }
 
+void expirekeysGenericCommand(redisClient *c, robj *keypattern, robj *param, long offset) {
+    dictIterator *di;
+    dictEntry *de;
+    sds pattern = keypattern->ptr;
+    int plen = sdslen(pattern);
+    unsigned long numkeys = 0, allkeys;
+    time_t seconds;
+    time_t when;
+
+    if (getLongFromObjectOrReply(c, param, &seconds, NULL) != REDIS_OK) return;
+
+    seconds -= offset;
+    when = time(NULL)+seconds;
+
+    di = dictGetIterator(c->db->dict);
+    allkeys = (pattern[0] == '*' && pattern[1] == '\0');
+    while((de = dictNext(di)) != NULL) {
+        sds key = dictGetEntryKey(de);
+        robj *keyobj;
+
+        if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) {
+            keyobj = createStringObject(key,sdslen(key));
+            if (seconds <= 0 && !server.loading && !server.masterhost) {
+                robj *aux;
+
+                redisAssert(dbDelete(c->db,keyobj));
+                server.dirty++;
+                numkeys++;
+
+                /* Replicate/AOF this as an explicit DEL. */
+                aux = createStringObject("DEL",3);
+                rewriteClientCommandVector(c,2,aux,keyobj);
+                decrRefCount(aux);
+                touchWatchedKey(c->db,keyobj);
+            } else {
+                time_t when = time(NULL)+seconds;
+                setExpire(c->db,keyobj,when);
+                touchWatchedKey(c->db,keyobj);
+                server.dirty++;
+                numkeys++;
+            }
+            decrRefCount(keyobj);
+        }
+    }
+    dictReleaseIterator(di);
+    addReplyLongLong(c,numkeys);
+}
+
+void expirekeysCommand(redisClient *c) {
+    expirekeysGenericCommand(c,c->argv[1],c->argv[2],0);
+}
+
+void expirekeysatCommand(redisClient *c) {
+    expirekeysGenericCommand(c,c->argv[1],c->argv[2],time(NULL));
+}
+
 void ttlCommand(redisClient *c) {
     time_t expire, ttl = -1;
 

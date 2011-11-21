@@ -969,6 +969,8 @@ void mgetCommand(redisClient *c);
 void monitorCommand(redisClient *c);
 void expireCommand(redisClient *c);
 void expireatCommand(redisClient *c);
+void expirekeysCommand(redisClient *c);
+void expirekeysatCommand(redisClient *c);
 void getsetCommand(redisClient *c);
 void ttlCommand(redisClient *c);
 void persistCommand(redisClient *c);
