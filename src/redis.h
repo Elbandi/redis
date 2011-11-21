@@ -909,6 +909,7 @@ void setnxCommand(redisClient *c);
 void setexCommand(redisClient *c);
 void getCommand(redisClient *c);
 void delCommand(redisClient *c);
+void delkeysCommand(redisClient *c);
 void existsCommand(redisClient *c);
 void setbitCommand(redisClient *c);
 void getbitCommand(redisClient *c);

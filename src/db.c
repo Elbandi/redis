@@ -197,6 +197,33 @@ void delCommand(redisClient *c) {
     addReplyLongLong(c,deleted);
 }
 
+void delkeysCommand(redisClient *c) {
+    dictIterator *di;
+    dictEntry *de;
+    sds pattern = c->argv[1]->ptr;
+    int plen = sdslen(pattern), allkeys;
+    unsigned long deleted = 0;
+
+    di = dictGetIterator(c->db->dict);
+    allkeys = (pattern[0] == '*' && pattern[1] == '\0');
+    while((de = dictNext(di)) != NULL) {
+        sds key = dictGetEntryKey(de);
+        robj *keyobj;
+
+        if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) {
+            keyobj = createStringObject(key,sdslen(key));
+            if (dbDelete(c->db,keyobj)) {
+                touchWatchedKey(c->db,keyobj);
+                server.dirty++;
+                deleted++;
+            }
+            decrRefCount(keyobj);
+        }
+    }
+    dictReleaseIterator(di);
+    addReplyLongLong(c,deleted);
+}
+
 void existsCommand(redisClient *c) {
     expireIfNeeded(c->db,c->argv[1]);
     if (dbExists(c->db,c->argv[1])) {

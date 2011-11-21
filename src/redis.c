@@ -77,6 +77,7 @@ struct redisCommand readonlyCommandTable[] = {
     {"append",appendCommand,3,REDIS_CMD_DENYOOM,NULL,1,1,1},
     {"strlen",strlenCommand,2,0,NULL,1,1,1},
     {"del",delCommand,-2,0,NULL,0,0,0},
+    {"delkeys",delkeysCommand,2,0,NULL,0,0,0},
     {"exists",existsCommand,2,0,NULL,1,1,1},
     {"setbit",setbitCommand,4,REDIS_CMD_DENYOOM,NULL,1,1,1},
     {"getbit",getbitCommand,3,0,NULL,1,1,1},

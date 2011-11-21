@@ -52,6 +52,11 @@ start_server {tags {"basic"}} {
         r dbsize
     } {6}
 
+    test {DEL with pattern} {
+        r delkeys foo*
+        r dbsize
+    } {3}
+
     test {DEL all keys} {
         foreach key [r keys *] {r del $key}
         r dbsize
