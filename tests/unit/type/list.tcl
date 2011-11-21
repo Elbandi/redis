@@ -513,6 +513,23 @@ start_server {
             assert_equal "c a $large" [r lrange mylist 0 -1]
         }
 
+        test "LPOPRPUSH base case - $type" {
+            r del mylist1 mylist2
+            create_$type mylist1 "a b $large d"
+            assert_equal a [r lpoprpush mylist1 mylist2]
+            assert_equal b [r lpoprpush mylist1 mylist2]
+            assert_equal "$large d" [r lrange mylist1 0 -1]
+            assert_equal "a b" [r lrange mylist2 0 -1]
+            assert_encoding ziplist mylist2
+        }
+
+        test "LPOPRPUSH with the same list as src and dst - $type" {
+            create_$type mylist "a $large c"
+            assert_equal "a $large c" [r lrange mylist 0 -1]
+            assert_equal a [r lpoprpush mylist mylist]
+            assert_equal "$large c a" [r lrange mylist 0 -1]
+        }
+
         foreach {othertype otherlarge} [array get largevalue] {
             test "RPOPLPUSH with $type source and existing target $othertype" {
                 create_$type srclist "a b c $large"
@@ -523,6 +540,21 @@ start_server {
                 assert_equal "c $large $otherlarge" [r lrange dstlist 0 -1]
 
                 # When we rpoplpush'ed a large value, dstlist should be
+                # converted to the same encoding as srclist.
+                if {$type eq "linkedlist"} {
+                    assert_encoding linkedlist dstlist
+                }
+            }
+
+            test "LPOPRPUSH with $type source and existing target $othertype" {
+                create_$type srclist "$large a b c"
+                create_$othertype dstlist "$otherlarge"
+                assert_equal $large [r lpoprpush srclist dstlist]
+                assert_equal a [r lpoprpush srclist dstlist]
+                assert_equal "b c" [r lrange srclist 0 -1]
+                assert_equal "$otherlarge $large a" [r lrange dstlist 0 -1]
+
+                # When we lpoprpush'ed a large value, dstlist should be
                 # converted to the same encoding as srclist.
                 if {$type eq "linkedlist"} {
                     assert_encoding linkedlist dstlist
@@ -557,6 +589,34 @@ start_server {
     test {RPOPLPUSH against non existing src key} {
         r del srclist dstlist
         assert_equal {} [r rpoplpush srclist dstlist]
+    } {}
+
+    test {LPOPRPUSH against non existing key} {
+        r del srclist dstlist
+        assert_equal {} [r lpoprpush srclist dstlist]
+        assert_equal 0 [r exists srclist]
+        assert_equal 0 [r exists dstlist]
+    }
+
+    test {LPOPRPUSH against non list src key} {
+        r del srclist dstlist
+        r set srclist x
+        assert_error ERR* {r lpoprpush srclist dstlist}
+        assert_type string srclist
+        assert_equal 0 [r exists newlist]
+    }
+
+    test {LPOPRPUSH against non list dst key} {
+        create_ziplist srclist {a b c d}
+        r set dstlist x
+        assert_error ERR* {r lpoprpush srclist dstlist}
+        assert_type string dstlist
+        assert_equal {a b c d} [r lrange srclist 0 -1]
+    }
+
+    test {LPOPRPUSH against non existing src key} {
+        r del srclist dstlist
+        assert_equal {} [r lpoprpush srclist dstlist]
     } {}
 
     foreach {type large} [array get largevalue] {

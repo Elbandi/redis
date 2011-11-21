@@ -699,6 +699,86 @@ void rpoplpushCommand(redisClient *c) {
     }
 }
 
+/* This is the semantic of this command:
+ *  LPOPRPUSH srclist dstlist:
+ *    IF LLEN(srclist) > 0
+ *      element = LPOP srclist
+ *      RPUSH dstlist element
+ *      RETURN element
+ *    ELSE
+ *      RETURN nil
+ *    END
+ *  END
+ *
+ * The idea is to be able to get an element from a list in a reliable way
+ * since the element is not just returned but pushed against another list
+ * as well. This command was originally proposed by Ezra Zygmuntowicz.
+ */
+
+void lpoprpushHandlePush(redisClient *origclient, redisClient *c, robj *dstkey, robj *dstobj, robj *value) {
+    robj *aux;
+
+    if (!handleClientsWaitingListPush(c,dstkey,value)) {
+        /* Create the list if the key does not exist */
+        if (!dstobj) {
+            dstobj = createZiplistObject();
+            dbAdd(c->db,dstkey,dstobj);
+        } else {
+            touchWatchedKey(c->db,dstkey);
+        }
+        listTypePush(dstobj,value,REDIS_TAIL);
+        /* If we are pushing as a result of LPUSH against a key
+         * watched by BLPOPLPUSH, we need to rewrite the command vector.
+         * But if this is called directly by LPOPRPUSH (either directly
+         * or via a BLPOPRPUSH where the popped list exists)
+         * we should replicate the BLPOPRPUSH command itself. */
+        if (c != origclient) {
+            aux = createStringObject("RPUSH",5);
+            rewriteClientCommandVector(origclient,3,aux,dstkey,value);
+            decrRefCount(aux);
+        } else {
+            /* Make sure to always use LPOPRPUSH in the replication / AOF,
+             * even if the original command was BLPOPRPUSH. */
+            aux = createStringObject("LPOPRPUSH",9);
+            rewriteClientCommandVector(origclient,3,aux,c->argv[1],c->argv[2]);
+            decrRefCount(aux);
+        }
+        server.dirty++;
+    }
+
+    /* Always send the pushed value to the client. */
+    addReplyBulk(c,value);
+}
+
+void lpoprpushCommand(redisClient *c) {
+    robj *sobj, *value;
+    if ((sobj = lookupKeyWriteOrReply(c,c->argv[1],shared.nullbulk)) == NULL ||
+        checkType(c,sobj,REDIS_LIST)) return;
+
+    if (listTypeLength(sobj) == 0) {
+        addReply(c,shared.nullbulk);
+    } else {
+        robj *dobj = lookupKeyWrite(c->db,c->argv[2]);
+        robj *touchedkey = c->argv[1];
+
+        if (dobj && checkType(c,dobj,REDIS_LIST)) return;
+        value = listTypePop(sobj,REDIS_HEAD);
+        /* We saved touched key, and protect it, since lpoprpushHandlePush
+         * may change the client command argument vector. */
+        incrRefCount(touchedkey);
+        lpoprpushHandlePush(c,c,c->argv[2],dobj,value);
+
+        /* listTypePop returns an object with its refcount incremented */
+        decrRefCount(value);
+
+        /* Delete the source list when it is empty */
+        if (listTypeLength(sobj) == 0) dbDelete(c->db,touchedkey);
+        touchWatchedKey(c->db,touchedkey);
+        decrRefCount(touchedkey);
+        server.dirty++;
+    }
+}
+
 /*-----------------------------------------------------------------------------
  * Blocking POP operations
  *----------------------------------------------------------------------------*/
