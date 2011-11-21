@@ -12,6 +12,12 @@ start_server {tags {"other"}} {
         r save
     } {OK}
 
+    test {SAVE - with filename} {
+        set dir [lindex [split [r config get "dir"] " "] end]
+        assert_equal OK [r save dumptest]
+        assert_equal 1 [file exists $dir/dumptest]
+    }
+
     tags {"slow"} {
         foreach fuzztype {binary alpha compr} {
             test "FUZZ stresser with data model $fuzztype" {
@@ -40,6 +46,14 @@ start_server {tags {"other"}} {
         r debug reload
         r get x
     } {10}
+
+    test {BGSAVE - with filename} {
+        set dir [lindex [split [r config get "dir"] " "] end]
+        waitForBgsave r
+        assert_equal "Background saving started" [r bgsave bgdumptest]
+        waitForBgsave r
+        assert_equal 1 [file exists $dir/bgdumptest]
+    }
 
     test {SELECT an out of range DB} {
         catch {r select 1000000} err

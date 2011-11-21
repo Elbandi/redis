@@ -336,11 +336,12 @@ void typeCommand(redisClient *c) {
 }
 
 void saveCommand(redisClient *c) {
+    char *dbfilename = c->argc > 1 ? c->argv[1]->ptr : server.dbfilename;
     if (server.bgsavechildpid != -1) {
         addReplyError(c,"Background save already in progress");
         return;
     }
-    if (rdbSave(server.dbfilename) == REDIS_OK) {
+    if (rdbSave(dbfilename) == REDIS_OK) {
         addReply(c,shared.ok);
     } else {
         addReply(c,shared.err);
@@ -348,11 +349,12 @@ void saveCommand(redisClient *c) {
 }
 
 void bgsaveCommand(redisClient *c) {
+    char *dbfilename = c->argc > 1 ? c->argv[1]->ptr : server.dbfilename;
     if (server.bgsavechildpid != -1) {
         addReplyError(c,"Background save already in progress");
         return;
     }
-    if (rdbSaveBackground(server.dbfilename) == REDIS_OK) {
+    if (rdbSaveBackground(dbfilename) == REDIS_OK) {
         addReplyStatus(c,"Background saving started");
     } else {
         addReply(c,shared.err);
