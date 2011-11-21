@@ -313,6 +313,25 @@ start_server {tags {"basic"}} {
         r move mykey 10
     } {0}
 
+    test {MOVEKEYS basic usage} {
+        r flushall
+        r set mykey foobar
+        r movekeys myke* 10
+        set res {}
+        lappend res [r exists mykey]
+        lappend res [r dbsize]
+        r select 10
+        lappend res [r get mykey]
+        lappend res [r dbsize]
+        r select 9
+        format $res
+    } [list 0 0 foobar 1]
+
+    test {MOVEKEYS against key existing in the target DB} {
+        r set mykey hello
+        r movekeys myke* 10
+    } {0}
+
     test {SET/GET keys in different DBs} {
         r set a hello
         r set b world

@@ -443,6 +443,62 @@ void moveCommand(redisClient *c) {
     addReply(c,shared.cone);
 }
 
+
+void movekeysCommand(redisClient *c) {
+    redisDb *src, *dst;
+    int srcid;
+
+    dictIterator *di;
+    dictEntry *de;
+    sds pattern = c->argv[1]->ptr;
+    int plen = sdslen(pattern), allkeys;
+    unsigned long numkeys = 0;
+
+    /* Obtain source and target DB pointers */
+    src = c->db;
+    srcid = c->db->id;
+    if (selectDb(c,atoi(c->argv[2]->ptr)) == REDIS_ERR) {
+        addReply(c,shared.outofrangeerr);
+        return;
+    }
+    dst = c->db;
+    selectDb(c,srcid); /* Back to the source DB */
+
+    /* If the user is moving using as target the same
+     * DB as the source DB it is probably an error. */
+    if (src == dst) {
+        addReply(c,shared.sameobjecterr);
+        return;
+    }
+
+    di = dictGetIterator(c->db->dict);
+    allkeys = (pattern[0] == '*' && pattern[1] == '\0');
+    while((de = dictNext(di)) != NULL) {
+        sds key = dictGetEntryKey(de);
+        robj *keyobj;
+
+        if (allkeys || stringmatchlen(pattern,plen,key,sdslen(key),0)) {
+            keyobj = createStringObject(key,sdslen(key));
+            if (expireIfNeeded(c->db,keyobj) == 0) {
+                robj *val = dictGetEntryVal(de);
+
+                /* Try to add the element to the target DB */
+                if (dbAdd(dst,keyobj,val) != REDIS_ERR) {
+                    incrRefCount(val);
+
+                    /* OK! key moved, free the entry in the source DB */
+                    dbDelete(src,keyobj);
+                    server.dirty++;
+                    numkeys++;
+                }
+            }
+            decrRefCount(keyobj);
+        }
+    }
+    dictReleaseIterator(di);
+    addReplyLongLong(c,numkeys);
+}
+
 /*-----------------------------------------------------------------------------
  * Expires API
  *----------------------------------------------------------------------------*/

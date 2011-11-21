@@ -930,6 +930,7 @@ void bgsaveCommand(redisClient *c);
 void bgrewriteaofCommand(redisClient *c);
 void shutdownCommand(redisClient *c);
 void moveCommand(redisClient *c);
+void movekeysCommand(redisClient *c);
 void renameCommand(redisClient *c);
 void renamenxCommand(redisClient *c);
 void lpushCommand(redisClient *c);

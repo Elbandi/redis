@@ -154,6 +154,7 @@ struct redisCommand readonlyCommandTable[] = {
     {"randomkey",randomkeyCommand,1,0,NULL,0,0,0},
     {"select",selectCommand,2,0,NULL,0,0,0},
     {"move",moveCommand,3,0,NULL,1,1,1},
+    {"movekeys",movekeysCommand,3,0,NULL,1,1,1},
     {"rename",renameCommand,3,0,NULL,1,1,1},
     {"renamenx",renamenxCommand,3,0,NULL,1,1,1},
     {"expire",expireCommand,3,0,NULL,0,0,0},
